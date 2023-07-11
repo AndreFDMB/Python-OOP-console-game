@@ -5,9 +5,6 @@ The premise is simple: players build their own vehicles out of a selection of av
 Players start by choosing their starter chassis and weapon from a limited selection, and then battle randomly generated enemies in turn based combat, picking actions according to their vehicle build and availability in order to defeat their foes and obtain more parts to make better builds.
 
 TO-DO:
--flesh out class and function definitions
--implement basic opponent AI logic
--implement basic game logic
 -test out basic game play for bugs
 -combat rewards system
 -improve action and opponent AI logic for more advanced systems (energy management, healing, dodging etc.)
