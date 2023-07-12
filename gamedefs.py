@@ -48,7 +48,7 @@ class Chassis():
         if self.integrity <= 0:
             self.integrity = 0
             self.alive = False
-            print("The {name} has been destroyed!".format(name = self.name))
+            print("The {name} has been destroyed!\n".format(name = self.name))
     
     #The default Ram action available to all vehicles
     def ram(self, enemy_speed):
@@ -100,7 +100,7 @@ class Equipment():
         self.starter = starter
 
     def __repr__(self):
-        return "This {name} is an equipment of type {type}\nIt weights {weight} tons\nHas a healing power of {heal}\nHas {uses} uses left\nIncreases integrity by {integrity}\nHas an energy cost per use of {energy_cost}\nIt has a cooldown of {cooldown} turns per use and is currently cooling down for {curr_cooldown} turns".format(
+        return "This {name} is an equipment of type {type}\nIt weights {weight} tons\nHas a healing power of {heal}\nHas {uses} uses left\nIncreases integrity by {integrity}\nHas an energy cost per use of {energy_cost}\nIt has a cooldown of {cooldown} turns per use and is currently cooling down for {curr_cooldown} turns\n".format(
             name = self.name, 
             type = self.type, 
             weight = self.weight, 
@@ -174,9 +174,9 @@ def ram(vehicle, target):
     if not target.dodgeCheck():
         vehicle.takeDamage(target_damage)
         target.takeDamage(ram_damage)
-        print("The {vehicle} rams the {target}, dealing {damage} damage to its integrity and taking {selfdamage} damage!".format(vehicle = vehicle.name, target = target.name, damage = ram_damage, selfdamage = target_damage))
+        print("\nThe {vehicle} rams the {target}, dealing {damage} damage to its integrity and taking {selfdamage} damage!\n".format(vehicle = vehicle.name, target = target.name, damage = ram_damage, selfdamage = target_damage))
     else:
-        print("The {target} dodged the ram attack!".format(target = target.name))
+        print("\nThe {target} dodged the ram attack!\n".format(target = target.name))
 
 #Use equipment
 def use(vehicle, target, eqpt):
@@ -186,15 +186,15 @@ def use(vehicle, target, eqpt):
     if damage > 0:
         if not target.dodgeCheck():
             target.takeDamage(damage)
-            print("{action} deals {damage} damage to the enemy's integrity! They now have {integrityleft} integrity left.".format(
+            print("\n{action} deals {damage} damage to the enemy's integrity! They now have {integrityleft} integrity left.\n".format(
                 action = eqpt.action, 
                 damage = damage, 
                 integrityleft = target.integrity))
         else:
-            print("The {target} dodged the attack!".format(target = target.name))
+            print("\nThe {target} dodged the attack!\n".format(target = target.name))
     vehicle.updateEquipmentAvailability()
 
-#Player turn events
+#Player turn handling
 def player_turn(player_vehicle, enemy_vehicle):
     #Regen energy
     player_vehicle.energyRegen()
@@ -224,7 +224,7 @@ def player_turn(player_vehicle, enemy_vehicle):
         elif action == "2":
             for equipment in player_vehicle.equipment:
                 equipment.reload()
-            print("You reload all your equipment.")
+            print("\nYou reload all your equipment.\n")
             break  # Break out of the loop after valid action
         elif action.isdigit() and 2 < int(action) < 2 + len(available_equipment) + 1:
             action_index = int(action) - 3
@@ -234,8 +234,9 @@ def player_turn(player_vehicle, enemy_vehicle):
                 use(player_vehicle, enemy_vehicle, equipment)
                 break  # Break out of the loop after valid action
             else:
-                print("Invalid action! Please try again.\n")
+                print("\nInvalid action! Please try again.\n")
 
+#Enemy turn handling
 def enemy_turn(player_vehicle, enemy_vehicle):
     #Regen energy
     enemy_vehicle.energyRegen()
@@ -244,27 +245,24 @@ def enemy_turn(player_vehicle, enemy_vehicle):
         equipment.reduceCooldown()
     enemy_vehicle.updateEquipmentAvailability()
 
-    available_equipment = []  # Create a list to store available equipment
-    for equipment in enemy_vehicle.equipment:
-        if equipment.available:
-            available_equipment.append(equipment)
-    
-    #Check for ramming priority
-    if enemy_vehicle.weight > player_vehicle.weight:
-        #Check if ramming would deal more damage then highest available damage dealing equipment and if there is enough integrity left
-        ram_damage = enemy_vehicle.ram(player_vehicle.speed)
+    available_equipment = [equipment for equipment in enemy_vehicle.equipment if equipment.available]
+    ram_damage = enemy_vehicle.ram(player_vehicle.speed)
+    if len(available_equipment) > 0:
         max_damage = max(equipment.damage for equipment in available_equipment)
-        if ram_damage > max_damage and enemy_vehicle.integrity > enemy_vehicle.ram(player_vehicle.speed):
-            ram(enemy_vehicle, player_vehicle)
+    else:
+        max_damage = 0
+    #Check if ramming would deal more damage then highest available damage dealing equipment and if there is enough integrity left
+    if enemy_vehicle.weight > player_vehicle.weight and ram_damage > max_damage and enemy_vehicle.integrity > player_vehicle.ram(enemy_vehicle.speed):
+        ram(enemy_vehicle, player_vehicle)
     #Check for available equipment
     elif len(available_equipment) > 0:
-        action = random.choice(available_equipment)
-        use(enemy_vehicle, player_vehicle, action)
+        equipment = random.choice(available_equipment)
+        use(enemy_vehicle, player_vehicle, equipment)
     #Reload if none available
     else:
         for equipment in enemy_vehicle.equipment:
             equipment.reload()
-        print("The opponent reloads all their equipment.")
+        print("The opponent reloads all their equipment.\n")
     enemy_vehicle.updateEquipmentAvailability()
 
 #Player starter chassis choice
@@ -294,6 +292,7 @@ def choose_starter_item(lst):
         print("Invalid selection.")
         return choose_starter_item(lst)
 
+#Basic game logic
 def start_game():
     # Select a chassis
     chassis = choose_starter_item(chassislist)
@@ -301,7 +300,7 @@ def start_game():
     # Choose weapons for each slot in the chassis
     for i in range(chassis.slots):
         equipment = choose_starter_item(equipmentlist)
-        chassis.equipment.append(equipment)
+        chassis.equipment.append(copy.deepcopy(equipment))
         chassis.updateAttribute("integrity", equipment)
         chassis.updateAttribute("weight", equipment)
 
