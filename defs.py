@@ -1,4 +1,4 @@
-# This file fill hold all function definitions and game logic
+# This file will hold all function definitions and game logic
 
 import objs
 from copy import deepcopy

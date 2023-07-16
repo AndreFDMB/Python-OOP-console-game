@@ -1,4 +1,4 @@
-# This file fill hold all class definitions and instances
+# This file will hold all class definitions and instances
 
 from collections import OrderedDict
 from copy import deepcopy
