@@ -1,6 +1,6 @@
 # This file fill hold all class definitions and instances
 
-from collections import namedtuple
+from collections import OrderedDict
 from copy import deepcopy
 import random
 
@@ -9,17 +9,13 @@ import random
 #-------------------------------------------------
 
 class Vehicle():
-    def __init__(self, name, entity, chassis, parts, stats):
-        self._name = name                                       # Vehicle name
-        self._entity = entity                                   # Player or Enemy
-        self._chassis = self.get_chassis_part()                 # Retrieves the chassis from the parts list for easy access
-        self._parts = parts                                     # List of parts the build is comprised of
-        self._stats = self.calculate_stats()                    # Dictionary of stats the vehicle has, like integrity, weight, speed, dodge chance, etc.
-        self._stats["curr_energy"] = self._stats["energy_pool"] #Initialize current energy pool stat to be equal to vehicle's max energy pool after total stats are calculated
-        self._alive = True                                      # Vehicle alive state
-        self._actions = [deepcopy(part.action) for part in parts] if parts else []
-        self._actions.append(reload)
-        self._actions.append(ram)
+    def __init__(self, name, entity, parts):
+        self._name = name                                               # Vehicle name
+        self._entity = entity                                           # Player or Enemy
+        self._parts = parts if parts is not None else []                # List of parts the build is comprised of
+        self._chassis = self.get_chassis_part()                         # Retrieves the chassis from the parts list for easy access
+        self._stats = self.calculate_stats()                            # Dictionary of stats the vehicle has, like integrity, weight, speed, dodge chance, etc.
+        self._alive = True                                              # Vehicle alive state
 
 #Decorators
 #-------------------------------------------------
@@ -67,7 +63,13 @@ class Vehicle():
 
     @property
     def actions(self):
-        return self._actions
+        if not hasattr(self, '_action_copies'):
+            self._action_copies = [deepcopy(part.action) for part in self.parts if part.action is not None]
+            self._action_copies.append(deepcopy(reload))
+            self._action_copies.append(deepcopy(ram))
+        print(self._action_copies)
+        print([part.available for part in self._action_copies])
+        return self._action_copies
 
     @actions.setter
     def actions(self, value):
@@ -82,55 +84,75 @@ class Vehicle():
         self._chassis = value
 
 #-------------------------------------------------
+    def __repr__(self):
+        return f"{self.name}"
 
     def get_chassis_part(self):                     # Retrieve chassis
         for part in self.parts:
-            if part.type.lower() == "chassis":
+            if isinstance(part, Chassis):
                 return part
         return blank_chassis
 
-    def calculate_stats(self):                      # Sums up each stat from the part dictionaries present in the vehicle's parts list
+    def calculate_stats(self):
         total_stats = {}
         for part in self.parts:
             for key, value in part.stats.items():
                 total_stats[key] = total_stats.get(key, 0) + value
+        total_stats["curr_energy"] = total_stats.get("energy_pool", 0)
+        total_stats["max_integrity"] = total_stats.get("integrity", 0)
+        for stat, value in total_stats.items():
+            total_stats[stat] = max(value, 0)
+
+        self._stats = total_stats
         return total_stats
 
     def reset_stats(self):                           # Reset stats to 0
         for stat in self.stats.keys():
-            stat = 0
+            self.stats[stat] = 0
 
     def update_stats(self):                          # Update vehicle stats
-        for stat, value in self.stats:
+        for stat, value in self.stats.items():
             for part in self.parts:
                 part_value = getattr(part, stat, 0)
-                value += part_value
-            getattr(self, f'set_{stat}')(value)
+                self.stats[stat] = value + part_value
+                self.stats["curr_energy"] = self.stats.get("energy_pool", 0)
+                self.stats["max_integrity"] = self.stats.get("integrity", 0)
+            if self.stats[stat] < 0:
+                self.stats[stat] = 0
     
     def regenerate_energy(self):                    # Execute energy regen, checking for ceiling
-        curr = self._stats["curr_energy"]
-        regen = self._stats["energy_regen"]
-        max = self._stats["max_energy"]
+        curr = self.stats["curr_energy"]
+        regen = self.stats["energy_regen"]
+        max = self.stats["energy_pool"]
         if curr + regen <= max:
             curr += regen
         else:
             curr = max
+        self._stats["curr_energy"] = curr
 
     def reduce_cooldowns(self):                     # Execute cooldown reduction for every action
         for action in self.actions:
             if action.curr_cooldown > 0 and action.cooldown > 0:
-                action.curr_cooldown(action.curr_cooldown - 1) 
+                action.curr_cooldown -= 1
 
     def update_action_availability(self):
         curr = self._stats["curr_energy"]
-        regen = self._stats["energy_regen"]
         for action in self.actions:
-            if curr + regen < action.energy_cost and action.energy_cost > 0:
-                action.available(False)
-            if action.curr_cooldown > 0:
-                action.available(False)
-            if action.curr_uses <= 0:
-                action.available(False)
+            if action.energy_cost > 0:
+                if curr < action.energy_cost:
+                    action.available = False
+                else:
+                    action.available = True
+            if action.max_uses > 0:
+                if action.curr_uses < 1:
+                    action.available = False
+                else:
+                    action.available = True
+            if action.cooldown > 0:
+                if action.curr_cooldown > 0:
+                    action.available = False
+                else:
+                    action.available = True
 
     def dodged(self):                               # Checks for dodge chance
         if random.random() * 100 < self.stats["dodge"]:
@@ -146,23 +168,29 @@ class Vehicle():
             self.alive = False
         self.stats["integrity"] = integrity
 
+    def heal(self, amount):                         # Heals damage to the vehicle, with max integrity ceiling check
+        max_integrity = self.stats["max_integrity"]
+        current_integrity = self.stats["integrity"]
+        new_integrity = min(current_integrity + amount, max_integrity)
+        healed_amount = new_integrity - current_integrity
+        print(f"The {self.name} is healed for {healed_amount} integrity.\n")
+        self.stats["integrity"] = new_integrity
+
     def add_part(self, part):                        # Add a part to the build
         if isinstance(part, Chassis):
             print("Cannot add chassis as a separate part. Use the Chassis instance while creating the vehicle.")
             return
 
-        chassis = self.get_chassis_part()
-        if chassis is None:
-            print("No chassis found. Cannot add part without a chassis.")
-            return
-
         # Check if the part is compatible with the chassis slots
-        if part.type.lower() not in self.chassis.slots._fields:
+        if part.type.lower() not in self.chassis.slots.keys():
             print(f"The part type '{part.type}' is not compatible with the chassis slots.")
             return
 
         # Check if there are part slots left for the part's type
-        available_slots = getattr(self.chassis.slots, part.type.lower())
+        available_slots = self.chassis.slots[part.type]
+        for buildpart in self.parts:
+            if buildpart.type == part.type:
+                available_slots -= 1
         if available_slots <= 0:
             print(f"No available slots for the part type '{part.type}' in the chassis.")
             return
@@ -320,13 +348,14 @@ class Part():
 
 #-------------------------------------------------
 
-# Define a namedtuple class for the slots
-Slots = namedtuple('Slots', ['wheels', 'engine', 'bumper', 'item_mount', 'turret'])
+    def __repr__(self):
+        return f"{self.name}\nRank: {self.rank}\nTech Point cost: {self.tech_points}\nStats as Integrity | weight | speed | dodge | energy pool | energy regen | action\n{self.max_integrity} | {self.weight} | {self.speed} | {self.dodge}% | {self.energy_pool} | {self.energy_regen} | {self.action}\n"
 
 class Chassis(Part):
     def __init__(self, name, type, rank, tech_points, slots, integrity, weight, speed=0, dodge=0, energy_pool=0, energy_regen=0, action=None):
         super().__init__(name, type, rank, tech_points, integrity, weight, speed, dodge, energy_pool, energy_regen, action)
-        self._slots = Slots(*slots)
+        slot_names = ('wheels', 'engine', 'bumper', 'item_mount', 'turret')
+        self._slots = OrderedDict(zip(slot_names, slots))
 
 #Decorators
 #-------------------------------------------------
@@ -340,6 +369,9 @@ class Chassis(Part):
         self._slots = value
 
 #-------------------------------------------------
+
+    def __repr__(self):
+        return f"{self.name}\nRank: {self.rank}\nTech Points: {self.tech_points}\nSlots: {self.slots['wheels']} wheels, {self.slots['engine']} engine, {self.slots['bumper']} bumper, {self.slots['item_mount']} item mount, {self.slots['turret']} turret\n Stats as Integrity | weight | speed | dodge | energy pool | energy regen | action\n{self.max_integrity} | {self.weight} | {self.speed} | {self.dodge}% | {self.energy_pool} | {self.energy_regen} | {self.action}\n"
 
 class Action():
     def __init__(self, name, integrity_change=0, damage=0, cooldown=0, uses=0, energy_cost=0):
@@ -429,12 +461,16 @@ class Action():
         self._available = value
 
 #-------------------------------------------------
-
+    def __repr__(self):
+        return f"{self.name}"
+    
     def use(self, vehicle, target):                 #Uses the action, changing associated vehicle's stats accordingly
         if self.name == "Reload":                   #Handling special reload action
-            for part in vehicle.parts:
-                if part.max_uses > 0 and part.curr_uses < part.max_uses:
-                    part.curr_uses(part.curr_uses + 1)
+            for action in vehicle.actions:
+                if action.max_uses > 0 and action.curr_uses < action.max_uses:
+                    print(1, action.name, action.curr_uses)
+                    action.curr_uses  += 1
+                    print(2, action.name, action.curr_uses)
             return
         
         if self.name == "RAM!":                     #Handling special ram action calculation
@@ -449,13 +485,19 @@ class Action():
             return
 
         if self.integrity_change > 0:
-            vehicle.stats["integrity"] += self.integrity_change
+            vehicle.heal(self.integrity_change)
         if self.integrity_change < 0:
             vehicle.take_damage(self.integrity_change)
-        vehicle.stats["curr_energy"] -= self.energy_cost
+        #print(vehicle.stats["curr_energy"])
+        vehicle.stats["curr_energy"] -= self._energy_cost
+        #print(vehicle.stats["curr_energy"])
+        #print(1, self.curr_cooldown)
         self.curr_cooldown = self.cooldown
+        #print(2, self.curr_cooldown)
         if self.max_uses > 0:
+            print(3, self.curr_uses)
             self.curr_uses -= 1
+            print(4, self.curr_uses)
         if self.damage > 0:
             if target.dodged():                     #Checks for dodge before applying damage
                 print(f"The {target.name} dodged the {self.name}!\n")
@@ -508,10 +550,10 @@ spikes = Part("Spikes", "bumper", "starter", 1, 20, 2)
 tractorshovel = Part("Tractor shovel", "bumper", "starter", 2, 100, 8, -2, -2)
 
 #Item
-smg = Part("SMG", "item", "starter", 1, 10, 2, action=fire_smg)
-flamethrower = Part("Flamethrower", "item", "starter", 2, 20, 5, -2, -2, action=fire_flamethrower)
-laser = Part("Laser", "item", "starter", 1, 5, 5, 0, 0, 20, -4, fire_laser)
-medkit = Part("Medkit", "item", "starter", 2, 0, 6, -2, -2, 0, -2, medkit)
+smg = Part("SMG", "item_mount", "starter", 1, 10, 2, action=fire_smg)
+flamethrower = Part("Flamethrower", "item_mount", "starter", 2, 20, 5, -2, -2, action=fire_flamethrower)
+laser = Part("Laser", "item_mount", "starter", 1, 5, 5, 0, 0, 20, -4, fire_laser)
+medkit = Part("Medkit", "item_mount", "starter", 2, 0, 6, -2, -2, 0, -2, medkit)
 
 #Turret
 harpoon = Part("Harpoon", "turret", "starter", 2, 50, 5, action=trt_harpoon)
