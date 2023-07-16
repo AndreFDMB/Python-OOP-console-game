@@ -67,8 +67,6 @@ class Vehicle():
             self._action_copies = [deepcopy(part.action) for part in self.parts if part.action is not None]
             self._action_copies.append(deepcopy(reload))
             self._action_copies.append(deepcopy(ram))
-        print(self._action_copies)
-        print([part.available for part in self._action_copies])
         return self._action_copies
 
     @actions.setter
@@ -468,9 +466,7 @@ class Action():
         if self.name == "Reload":                   #Handling special reload action
             for action in vehicle.actions:
                 if action.max_uses > 0 and action.curr_uses < action.max_uses:
-                    print(1, action.name, action.curr_uses)
                     action.curr_uses  += 1
-                    print(2, action.name, action.curr_uses)
             return
         
         if self.name == "RAM!":                     #Handling special ram action calculation
@@ -488,16 +484,10 @@ class Action():
             vehicle.heal(self.integrity_change)
         if self.integrity_change < 0:
             vehicle.take_damage(self.integrity_change)
-        #print(vehicle.stats["curr_energy"])
         vehicle.stats["curr_energy"] -= self._energy_cost
-        #print(vehicle.stats["curr_energy"])
-        #print(1, self.curr_cooldown)
         self.curr_cooldown = self.cooldown
-        #print(2, self.curr_cooldown)
         if self.max_uses > 0:
-            print(3, self.curr_uses)
             self.curr_uses -= 1
-            print(4, self.curr_uses)
         if self.damage > 0:
             if target.dodged():                     #Checks for dodge before applying damage
                 print(f"The {target.name} dodged the {self.name}!\n")
