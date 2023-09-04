@@ -39,4 +39,5 @@ Players start by choosing their starter chassis and weapon from a limited select
     -integrate into game loop logic
         -apply event system to path generation and path generation to base game loop
 -expand chassis and equipment selection (through a SQLite database and object instance creator script)
--multiple opponent battles
+-currency system (fuel and scrap)
+-part mod system

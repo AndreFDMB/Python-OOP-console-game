@@ -93,28 +93,21 @@ def enemy_turn(player_vehicle, enemy_vehicle):
         objs.reload.use(enemy_vehicle, player_vehicle)
         print("The opponent reloads all their equipment.\n")
 
-def game_loop():
-    # Create player vehicle
-    player_vehicle = objs.Vehicle("Player Vehicle", "Player", None)
+def battle(player, enemy):
+    # Logic for executing a battle event
+    print("A battle event occurred!")
 
-    # Edit player vehicle
-    vehicle_edit(player_vehicle)
-
-    # Create enemy vehicle (randomly for now)
-    enemy_vehicle = create_enemy_vehicle("starter", "starter")
-
-    player_parts = [part.name for part in player_vehicle.parts]
-    enemy_parts = [part.name for part in enemy_vehicle.parts]
-    print(f'Player vehicle: {player_parts}\nPlayer stats:{player_vehicle.stats}')
-    print(f'Enemy vehicle: {enemy_parts}\nEnemy stats:{enemy_vehicle.stats}')
-
+    player_parts = [part.name for part in player.parts]
+    enemy_parts = [part.name for part in enemy.parts]
+    print(f'Player vehicle: {player_parts}\nPlayer stats:{player.stats}')
+    print(f'Enemy vehicle: {enemy_parts}\nEnemy stats:{enemy.stats}')
     turn = 1
-    # Game loop
-    while player_vehicle.alive and enemy_vehicle.alive:
+    # Battle loop
+    while player.alive and enemy.alive:
 
         # Stalemate breaking, highest integrity percentage wins
         if turn >= 100:
-            if enemy_vehicle.stats["integrity"] / enemy_vehicle.stats["max_integrity"] > player_vehicle.stats["integrity"] / player_vehicle.stats["max_integrity"]:
+            if enemy.stats["integrity"] / enemy.stats["max_integrity"] > player.stats["integrity"] / player.stats["max_integrity"]:
                 print("Game Over! Your vehicle ran out of fuel.")
                 break
             else:
@@ -122,24 +115,23 @@ def game_loop():
                 break
 
         # Player's turn
-        print(f"Turn: {turn}\n\n{player_vehicle.name} has {player_vehicle.stats['integrity']} integrity and {player_vehicle.stats['curr_energy']} energy left.\n{enemy_vehicle.name} has {enemy_vehicle.stats['integrity']} integrity and {enemy_vehicle.stats['curr_energy']} energy left.\n")
-        player_turn(player_vehicle, enemy_vehicle)
+        print(f"Turn: {turn}\n\n{player.name} has {player.stats['integrity']} integrity and {player.stats['curr_energy']} energy left.\n{enemy.name} has {enemy.stats['integrity']} integrity and {enemy.stats['curr_energy']} energy left.\n")
+        player_turn(player, enemy)
 
         # Check if enemy vehicle is destroyed
-        if not enemy_vehicle.alive:
+        if not enemy.alive:
             print("Congratulations! You destroyed the enemy vehicle.")
             break
 
         # Enemy's turn
-        enemy_turn(player_vehicle, enemy_vehicle)
+        enemy_turn(player, enemy)
 
         # Check if player vehicle is destroyed
-        if not player_vehicle.alive:
+        if not player.alive:
             print("Game Over! Your vehicle was destroyed by the enemy.")
             break
 
         turn += 1
-
 
 #Vehicle build logic
 #-------------------------------------------------
@@ -153,6 +145,14 @@ inventory = {
     "item_mount": [],
     "turret": [],
 }
+
+# Initialize player vehicle
+def player_init():
+    player_vhc = objs.Vehicle("Player Vehicle", "Player", None)
+    vehicle_edit(player_vhc)
+    return player_vhc
+
+player_vehicle = player_init()
 
 # Choose a part from part_list, given a determined type and rank
 def select_part(type=None, rank=None):
@@ -216,30 +216,4 @@ def vehicle_edit(vehicle):
     vehicle.update_stats()
     return
 
-# Enemy creation function, takes a minimum and maximum part rank as parameters 
-def create_enemy_vehicle(rank_floor, rank_ceiling):
-    rank_hierarchy = ["starter", "common", "uncommon", "rare", "epic"]
-    rank_floor_index = rank_hierarchy.index(rank_floor)
-    rank_ceiling_index = rank_hierarchy.index(rank_ceiling)
-    usable_ranks = rank_hierarchy[rank_floor_index : rank_ceiling_index+1]
-
-    # Select random chassis
-    chassis_list = [part for part in objs.part_list if part.type == "chassis" and part.rank in usable_ranks]
-    chassis = random.choice(chassis_list)
-    enemy_vehicle = objs.Vehicle("Enemy Vehicle", "Enemy", [deepcopy(chassis)])
-
-    # Add random parts to enemy vehicle within the specified rank range
-    tech_points_used = 0
-    for part_type, slots in chassis.slots.items():
-        for _ in range(slots):
-            parts = [part for part in objs.part_list if part.rank in usable_ranks and part.type == part_type and part.tech_points + tech_points_used <= chassis.tech_points]
-            if parts:
-                part = random.choice(parts)
-                enemy_vehicle.add_part(deepcopy(part))
-                tech_points_used += part.tech_points
-    enemy_vehicle.reset_stats()
-    enemy_vehicle.calculate_stats()
-    return enemy_vehicle
-
 #-------------------------------------------------
-game_loop()
