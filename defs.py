@@ -37,6 +37,16 @@ def select_option_from_list(options, prompt, tp_left = None):
         except ValueError:
             print("Invalid input. Please enter a valid index.")
 
+# Weighted probability roll function, accomodates dynamic adjustment of odds in the given dictionary
+def dynamic_weighted_choice(probabilities_dict):
+    total = sum(probabilities_dict.values())
+    r = random.uniform(0, total)
+    cumulative = 0
+    for outcome, prob in probabilities_dict.items():
+        cumulative += prob
+        if r <= cumulative:
+            return outcome
+
 # Turn start handling
 def turn_start(vehicle):
     vehicle.regenerate_energy()
@@ -99,8 +109,8 @@ def battle(player, enemy):
 
     player_parts = [part.name for part in player.parts]
     enemy_parts = [part.name for part in enemy.parts]
-    print(f'Player vehicle: {player_parts}\nPlayer stats:{player.stats}')
-    print(f'Enemy vehicle: {enemy_parts}\nEnemy stats:{enemy.stats}')
+    print(f"Player vehicle: {player_parts}\nPlayer stats:{player.stats}")
+    print(f"Enemy vehicle: {enemy_parts}\nEnemy stats:{enemy.stats}")
     turn = 1
     # Battle loop
     while player.alive and enemy.alive:
@@ -146,13 +156,8 @@ inventory = {
     "turret": [],
 }
 
-# Initialize player vehicle
-def player_init():
-    player_vhc = objs.Vehicle("Player Vehicle", "Player", None)
-    vehicle_edit(player_vhc)
-    return player_vhc
-
-player_vehicle = player_init()
+# Reference variable for part rank hierarchy, used for determining player power level, enemy and reward generation
+rank_hierarchy = ["starter", "common", "uncommon", "rare", "epic"]
 
 # Choose a part from part_list, given a determined type and rank
 def select_part(type=None, rank=None):
@@ -182,7 +187,7 @@ def vehicle_edit(vehicle):
         select_part(type="chassis", rank="starter")
         new_chassis  = chassis[0]
         for part_type, slots in new_chassis.slots.items():
-            for i in range(slots):
+            for _ in range(slots):
                 select_part(part_type, "starter")
         return vehicle_edit(vehicle)                                        #Restarts function so player can build their starter vehicle
     
@@ -201,10 +206,10 @@ def vehicle_edit(vehicle):
         vehicle_parts.append(chassis_choice)
         chassis.remove(chassis_choice)
     
-    tp_left  = vehicle_parts[0].tech_points
+    tp_left = vehicle_parts[0].tech_points
     
     for part_type, slots in vehicle_parts[0].slots.items():
-        for i in range(slots):
+        for _ in range(slots):
             print(f"Tech Points left: {tp_left}")
             part_choice = select_option_from_list(inventory[part_type], string, tp_left)
             if part_choice is not None:
@@ -215,5 +220,12 @@ def vehicle_edit(vehicle):
     vehicle.parts = vehicle_parts
     vehicle.update_stats()
     return
+
+# Initialize player vehicle
+def player_init(vehicle_instance):
+    vehicle_edit(vehicle_instance)
+    return vehicle_instance
+
+player_vehicle = objs.Vehicle("Player Vehicle", "Player", [])
 
 #-------------------------------------------------
